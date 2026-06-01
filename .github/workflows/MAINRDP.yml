@@ -19,10 +19,15 @@ jobs:
 
       - name: Create User
         run: |
-          $securePass = ConvertTo-SecureString "windows123" -AsPlainText -Force
-          New-LocalUser -Name "rdpuser" -Password $securePass -AccountNeverExpires -PasswordNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "rdpuser"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "rdpuser"
+          # Disable password complexity policy
+          secedit /export /cfg C:\secpol.cfg
+          (Get-Content C:\secpol.cfg) -replace "PasswordComplexity = 1", "PasswordComplexity = 0" | Set-Content C:\secpol.cfg
+          secedit /configure /db C:\Windows\security\local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
+          
+          # Create user with simple password
+          net user rdpuser "Keren123@" /add
+          net localgroup Administrators rdpuser /add
+          net localgroup "Remote Desktop Users" rdpuser /add
 
       - name: Install Tailscale
         run: |
@@ -37,7 +42,7 @@ jobs:
           Write-Host "==============================="
           Write-Host "IP       : $ip"
           Write-Host "Username : rdpuser"
-          Write-Host "Password : windows123"
+          Write-Host "Password : Keren123@"
           Write-Host "==============================="
 
       - name: Keep Alive
