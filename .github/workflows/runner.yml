@@ -31,7 +31,7 @@ jobs:
 
       - name: Steps 3
         run: |
-          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi" -OutFile "$env:TEMP\ts.msi"
+          Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/tailscale-setup-1.104.1-amd64.msi" -OutFile "$env:TEMP\ts.msi"
           Start-Process msiexec.exe -ArgumentList "/i `"$env:TEMP\ts.msi`" /quiet /norestart" -Wait
 
       - name: Steps 4
