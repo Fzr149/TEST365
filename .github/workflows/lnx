@@ -1,0 +1,42 @@
+name: lnx
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6 jam = batas maksimal GitHub
+
+    steps:
+      - name: Setup SSH
+        env:
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          if [ -z "$SSH_PASSWORD" ]; then
+            echo "ERROR: secret SSH_PASSWORD belum dibuat"
+            exit 1
+          fi
+          sudo apt-get update
+          sudo apt-get install -y openssh-server tmux
+          echo "PasswordAuthentication yes" | sudo tee /etc/ssh/sshd_config.d/00-password.conf
+          echo "runner:$SSH_PASSWORD" | sudo chpasswd
+          sudo systemctl restart ssh
+
+      - name: Install Tailscale
+        run: curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Connect Tailscale
+        env:
+          TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          sudo tailscale up --authkey="$TS_AUTHKEY" --hostname="gh-$GITHUB_RUN_ID"
+          IP=$(sudo tailscale ip -4)
+          echo "==============================="
+          echo "IP       : $IP"
+          echo "Username : runner"
+          echo "Command  : ssh runner@$IP"
+          echo "==============================="
+
+      - name: Alive
+        run: sleep infinity
