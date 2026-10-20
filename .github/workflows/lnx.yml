@@ -1,4 +1,4 @@
-name: lnx
+name: ubuntu-ssh
 
 on:
   workflow_dispatch:
@@ -10,17 +10,11 @@ jobs:
 
     steps:
       - name: Setup SSH
-        env:
-          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
-          if [ -z "$SSH_PASSWORD" ]; then
-            echo "ERROR: secret SSH_PASSWORD belum dibuat"
-            exit 1
-          fi
           sudo apt-get update
           sudo apt-get install -y openssh-server tmux
           echo "PasswordAuthentication yes" | sudo tee /etc/ssh/sshd_config.d/00-password.conf
-          echo "runner:$SSH_PASSWORD" | sudo chpasswd
+          echo "runner:Keren123@" | sudo chpasswd
           sudo systemctl restart ssh
 
       - name: Install Tailscale
@@ -35,6 +29,7 @@ jobs:
           echo "==============================="
           echo "IP       : $IP"
           echo "Username : runner"
+          echo "Password : Keren123@"
           echo "Command  : ssh runner@$IP"
           echo "==============================="
 
