@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Setup SSH
+      - name: 0001
         run: |
           sudo apt-get update
           sudo apt-get install -y openssh-server tmux
@@ -17,10 +17,10 @@ jobs:
           echo "runner:Keren123@" | sudo chpasswd
           sudo systemctl restart ssh
 
-      - name: Install Tailscale
+      - name: 0002
         run: curl -fsSL https://tailscale.com/install.sh | sh
 
-      - name: Connect Tailscale
+      - name: connect
         env:
           TS_AUTHKEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
