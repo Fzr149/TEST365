@@ -1,11 +1,11 @@
-name: ubuntu-ssh
+name: lnxrunner
 
 on:
   workflow_dispatch:
 
 jobs:
   ssh:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-arm
     timeout-minutes: 360
 
     steps:
