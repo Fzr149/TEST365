@@ -10,16 +10,21 @@ jobs:
           git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/libhidl
           git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/libhwbinder
           git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/core
+          git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/logging
       - name: Compile native service binary
         run: |
           CXX="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
+          mkdir -p stubs
+          $CXX -shared -fPIC -x c /dev/null -Wl,-soname,libhidlbase.so -o stubs/libhidlbase.so
+          $CXX -shared -fPIC -x c /dev/null -Wl,-soname,libutils.so -o stubs/libutils.so
           $CXX -std=c++17 -O2 -fPIE -pie \
             -Ilibhidl/base/include \
-            -Ilibhidl/transport/include \
             -Ilibhwbinder/include \
             -Icore/libutils/include \
-            -Icore/include \
-            main.cpp -llog \
+            -Icore/libcutils/include \
+            -Ilogging/liblog/include \
+            main.cpp \
+            -Lstubs -Wl,--no-as-needed -lhidlbase -lutils -Wl,--as-needed -llog \
             -Wl,--unresolved-symbols=ignore-all \
             -Wl,--allow-shlib-undefined \
             -Wl,-soname,vendor.oplus.hardware.communicationcenter_compat@1.1-service \
