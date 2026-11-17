@@ -1,20 +1,21 @@
+#include <android/log.h>
 #include <hidl/HidlSupport.h>
-#include <hidl/HidlTransportSupport.h>
 #include <hwbinder/Binder.h>
 #include <hwbinder/IPCThreadState.h>
 #include <hwbinder/Parcel.h>
-#include <utils/Log.h>
+#include <hwbinder/ProcessState.h>
+
+#define LOG_TAG "commcenter_compat-dummy"
 
 using android::sp;
 using android::status_t;
 using android::hardware::BHwBinder;
-using android::hardware::configureRpcThreadpool;
 using android::hardware::hidl_string;
 using android::hardware::hidl_vec;
 using android::hardware::IBinder;
 using android::hardware::IPCThreadState;
-using android::hardware::joinRpcThreadpool;
 using android::hardware::Parcel;
+using android::hardware::ProcessState;
 
 class DummyDmtpService : public BHwBinder {
 public:
@@ -62,10 +63,10 @@ public:
 };
 
 int main() {
-    configureRpcThreadpool(1, true);
+    ProcessState::self()->setThreadPoolMaxThreadCount(1);
 
     sp<IBinder> service = new DummyDmtpService();
-    sp<IBinder> sm = IPCThreadState::self()->getContextObject(nullptr);
+    sp<IBinder> sm = ProcessState::self()->getContextObject(nullptr);
 
     Parcel data, reply;
     data.writeInterfaceToken("android.hidl.manager@1.0::IServiceManager");
@@ -77,11 +78,11 @@ int main() {
 
     status_t err = sm->transact(1 /* add */, data, &reply);
     if (err != 0) {
-        ALOGE("Gagal register IDmtpService dummy: %d", err);
+        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "Gagal register IDmtpService dummy: %d", err);
         return 1;
     }
 
-    ALOGI("IDmtpService dummy native aktif");
-    joinRpcThreadpool();
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "IDmtpService dummy native aktif");
+    IPCThreadState::self()->joinThreadPool();
     return 0;
 }
