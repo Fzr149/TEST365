@@ -1,21 +1,59 @@
 #include <android/log.h>
-#include <hidl/HidlSupport.h>
+#include <cstring>
 #include <hwbinder/Binder.h>
 #include <hwbinder/IPCThreadState.h>
 #include <hwbinder/Parcel.h>
 #include <hwbinder/ProcessState.h>
+#include <vector>
 
 #define LOG_TAG "commcenter_compat-dummy"
 
 using android::sp;
 using android::status_t;
 using android::hardware::BHwBinder;
-using android::hardware::hidl_string;
-using android::hardware::hidl_vec;
 using android::hardware::IBinder;
 using android::hardware::IPCThreadState;
 using android::hardware::Parcel;
 using android::hardware::ProcessState;
+
+struct HidlString {
+    const char* mBuffer;
+    uint32_t mSize;
+    bool mOwnsBuffer;
+};
+static_assert(sizeof(HidlString) == 16, "Invalid HidlString ABI size");
+
+struct HidlVec {
+    const void* mBuffer;
+    uint32_t mSize;
+    bool mOwnsBuffer;
+};
+static_assert(sizeof(HidlVec) == 16, "Invalid HidlVec ABI size");
+
+static void writeHidlString(Parcel* p, const char* str) {
+    HidlString hs{str, static_cast<uint32_t>(std::strlen(str)), false};
+    size_t parent = 0;
+    p->writeBuffer(&hs, sizeof(hs), &parent);
+    size_t child = 0;
+    p->writeEmbeddedBuffer(hs.mBuffer, hs.mSize + 1, &child, parent, 0);
+}
+
+static void writeHidlStringVec(Parcel* p, const std::vector<const char*>& list) {
+    std::vector<HidlString> items;
+    items.reserve(list.size());
+    for (const char* s : list) {
+        items.push_back(HidlString{s, static_cast<uint32_t>(std::strlen(s)), false});
+    }
+    HidlVec vec{items.data(), static_cast<uint32_t>(items.size()), false};
+    size_t vecHandle = 0;
+    p->writeBuffer(&vec, sizeof(vec), &vecHandle);
+    size_t bufHandle = 0;
+    p->writeEmbeddedBuffer(items.data(), items.size() * sizeof(HidlString), &bufHandle, vecHandle, 0);
+    for (size_t i = 0; i < items.size(); ++i) {
+        size_t strHandle = 0;
+        p->writeEmbeddedBuffer(items[i].mBuffer, items[i].mSize + 1, &strHandle, bufHandle, i * sizeof(HidlString));
+    }
+}
 
 class DummyDmtpService : public BHwBinder {
 public:
@@ -26,24 +64,17 @@ public:
             case 256067662: { // interfaceChain
                 data.enforceInterface("android.hidl.base@1.0::IBase");
                 reply->writeInt32(0); // Status::OK
-                std::vector<hidl_string> chain = {
+                writeHidlStringVec(reply, {
                     "vendor.oplus.hardware.communicationcenter_compat@1.1::IDmtpService",
                     "vendor.oplus.hardware.communicationcenter_compat@1.0::IDmtpService",
                     "android.hidl.base@1.0::IBase",
-                };
-                hidl_vec<hidl_string> vec(chain);
-                size_t parent;
-                reply->writeBuffer(&vec, sizeof(vec), &parent);
-                vec.writeEmbeddedToParcel(reply, parent, 0);
+                });
                 return 0;
             }
             case 256136003: { // interfaceDescriptor
                 data.enforceInterface("android.hidl.base@1.0::IBase");
                 reply->writeInt32(0);
-                hidl_string desc("vendor.oplus.hardware.communicationcenter_compat@1.1::IDmtpService");
-                size_t parent;
-                reply->writeBuffer(&desc, sizeof(desc), &parent);
-                desc.writeEmbeddedToParcel(reply, parent, 0);
+                writeHidlString(reply, "vendor.oplus.hardware.communicationcenter_compat@1.1::IDmtpService");
                 return 0;
             }
             case 256921159: { // ping
@@ -70,13 +101,11 @@ int main() {
 
     Parcel data, reply;
     data.writeInterfaceToken("android.hidl.manager@1.0::IServiceManager");
-    hidl_string instance("default");
-    size_t parent;
-    data.writeBuffer(&instance, sizeof(instance), &parent);
-    instance.writeEmbeddedToParcel(&data, parent, 0);
+    writeHidlString(&data, "default");
     data.writeStrongBinder(service);
 
-    status_t err = sm->transact(1 /* add */, data, &reply);
+    // Transaction code 2 = IServiceManager::add(string name, interface service)
+    status_t err = sm->transact(2, data, &reply);
     if (err != 0) {
         __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "Gagal register IDmtpService dummy: %d", err);
         return 1;
