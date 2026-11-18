@@ -1,4 +1,4 @@
-name: Build Shim Only
+name: Build Shim and Patch Libs
 
 on:
   workflow_dispatch:
@@ -7,22 +7,38 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install clang & lld
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld binutils-aarch64-linux-gnu
+          sudo apt-get install -y clang lld patchelf binutils-aarch64-linux-gnu
 
-      - name: Compile libgui_shim_miuicamera.so
+      - name: Build libgui_shim_miuicamera.so
         run: |
           printf 'void _ZN7android18BnProducerListener16onBufferDetachedEi(int s){(void)s;}\n' > shim.c
           clang --target=aarch64-linux-android -nostdlib -shared -fPIC -fuse-ld=lld -Wl,-soname,libgui_shim_miuicamera.so -o libgui_shim_miuicamera.so shim.c
 
-      - name: Cek Simbol
+      - name: Verify Shim
         run: |
           aarch64-linux-gnu-readelf -Ws --dyn-syms --wide libgui_shim_miuicamera.so | grep onBufferDetached
 
-      - name: Upload Shim
+      - name: Patch JNI libraries
+        run: |
+          patchelf --add-needed libgui_shim_miuicamera.so libcamera_algoup_jni.xiaomi.so
+          patchelf --add-needed libgui_shim_miuicamera.so libcamera_mianode_jni.xiaomi.so
+
+      - name: Verify Patched Libs
+        run: |
+          aarch64-linux-gnu-readelf -d libcamera_algoup_jni.xiaomi.so | grep NEEDED
+          aarch64-linux-gnu-readelf -d libcamera_mianode_jni.xiaomi.so | grep NEEDED
+
+      - name: Upload Hasil Patch
         uses: actions/upload-artifact@v4
         with:
-          name: libgui_shim_miuicamera
-          path: libgui_shim_miuicamera.so
+          name: patched-camera-libs
+          path: |
+            libgui_shim_miuicamera.so
+            libcamera_algoup_jni.xiaomi.so
+            libcamera_mianode_jni.xiaomi.so
