@@ -1,37 +1,28 @@
-name: Build Dummy Dmtp HAL
-on: [push, workflow_dispatch]
+name: Build Shim Only
+
+on:
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Clone minimal headers
+      - name: Install clang & lld
         run: |
-          git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/libhwbinder
-          git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/core
-          git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/logging
-          git clone --depth=1 -b android-13.0.0_r83 https://android.googlesource.com/platform/system/libbase
-      - name: Compile native service binary
+          sudo apt-get update
+          sudo apt-get install -y clang lld binutils-aarch64-linux-gnu
+
+      - name: Compile libgui_shim_miuicamera.so
         run: |
-          CXX="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++"
-          mkdir -p stubs/include/system
-          touch stubs/include/system/graphics.h
-          $CXX -shared -fPIC -x c /dev/null -Wl,-soname,libhidlbase.so -o stubs/libhidlbase.so
-          $CXX -shared -fPIC -x c /dev/null -Wl,-soname,libutils.so -o stubs/libutils.so
-          $CXX -std=c++17 -O2 -fPIE -pie \
-            -Istubs/include \
-            -Ilibhwbinder/include \
-            -Icore/libutils/include \
-            -Icore/libcutils/include \
-            -Ilogging/liblog/include \
-            -Ilibbase/include \
-            main.cpp \
-            -Lstubs -Wl,--no-as-needed -lhidlbase -lutils -Wl,--as-needed -llog \
-            -Wl,--unresolved-symbols=ignore-all \
-            -Wl,--allow-shlib-undefined \
-            -Wl,-soname,vendor.oplus.hardware.communicationcenter_compat@1.1-service \
-            -o vendor.oplus.hardware.communicationcenter_compat@1.1-service
-      - uses: actions/upload-artifact@v4
+          printf 'void _ZN7android18BnProducerListener16onBufferDetachedEi(int s){(void)s;}\n' > shim.c
+          clang --target=aarch64-linux-android -nostdlib -shared -fPIC -fuse-ld=lld -Wl,-soname,libgui_shim_miuicamera.so -o libgui_shim_miuicamera.so shim.c
+
+      - name: Cek Simbol
+        run: |
+          aarch64-linux-gnu-readelf -Ws --dyn-syms --wide libgui_shim_miuicamera.so | grep onBufferDetached
+
+      - name: Upload Shim
+        uses: actions/upload-artifact@v4
         with:
-          name: dummy-dmtp-hal
-          path: vendor.oplus.hardware.communicationcenter_compat@1.1-service
+          name: libgui_shim_miuicamera
+          path: libgui_shim_miuicamera.so
